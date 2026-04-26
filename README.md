@@ -98,7 +98,7 @@ Each stage builds on top of the previous — HDFS stays running when Spark is ad
 
 ```bash
 # Stage 1 only — HDFS
-docker compose up namenode datanode1 datanode2 datanode3 resourcemanager nodemanager1 nodemanager2 nodemanager3 historyserver -d
+docker compose up namenode datanode1 datanode2 datanode3 resourcemanager nodemanager1 nodemanager2 nodemanager3 historyserver 
 
 # Stage 2 — Add Spark
 
@@ -184,10 +184,12 @@ git checkout karthikeyan
 # 3. Download data files from professor's repo and place in data/07-sportlytics-athletics/
 
 # 4. Start Stage 1 services
+docker compose up namenode datanode1 datanode2 datanode3 resourcemanager nodemanager1 nodemanager2 nodemanager3 historyserver -d
+
 
 # 5. Verify HDFS is running — open in browser
-
-```
+# NameNode UI:        http://localhost:9870  (should show 3 Live Nodes)
+# ResourceManager UI: http://localhost:8088  (should show 3 Active Nodes)
 
 ---
 
