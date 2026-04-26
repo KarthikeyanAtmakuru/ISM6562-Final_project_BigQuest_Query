@@ -199,7 +199,7 @@ git checkout karthikeyan
 
 # After making changes
 git add .
-git commit -m "Initial Phase-- added data files, and project scenario to our project repository"
+git commit -m "your commit message"
 git push
 ```
 
