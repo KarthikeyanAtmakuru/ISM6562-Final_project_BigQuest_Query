@@ -98,7 +98,7 @@ Each stage builds on top of the previous — HDFS stays running when Spark is ad
 
 ```bash
 # Stage 1 only — HDFS
-docker compose up namenode datanode1 datanode2 datanode3 resourcemanager nodemanager1 nodemanager2 nodemanager3 historyserver
+docker compose up namenode datanode1 datanode2 datanode3 resourcemanager nodemanager1 nodemanager2 nodemanager3 historyserver -d
 
 # Stage 2 — Add Spark
 
@@ -117,7 +117,7 @@ docker compose up namenode datanode1 datanode2 datanode3 resourcemanager nodeman
 ```
 ISM6562-Final_project_BigQuest_Query/
 │
-├── data/                                   # raw data files (not committed to Git)
+├── data/                                   # raw data files (committed to Git)
 │   └── 07-sportlytics-athletics/
 │       ├── player-tracking.csv
 │       ├── game-stats.json
