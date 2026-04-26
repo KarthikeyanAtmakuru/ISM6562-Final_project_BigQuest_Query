@@ -199,7 +199,7 @@ git checkout karthikeyan
 
 # After making changes
 git add .
-git commit -m "your commit message"
+git commit -m "commit message to display"
 git push
 ```
 
