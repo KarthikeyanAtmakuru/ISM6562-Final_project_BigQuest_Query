@@ -146,7 +146,7 @@ ISM6562-Final_project_BigQuest_Query/
 
 | Stage | Description | Status |
 |---|---|---|
-| Stage 1 | HDFS Data Lake — load all 5 files, create raw/processed/analytics zones | In Progress |
+| Stage 1 | HDFS Data Lake — load all 5 files, create raw/processed/analytics zones | Completed |
 | Stage 2 | Spark Batch — clean, join, aggregate, write Parquet | In Progress |
 | Stage 3 | Kafka + Spark Streaming — real-time player telemetry alerts | In Progress |
 | Stage 4 | Airflow — nightly batch pipeline orchestration | In Progress |
