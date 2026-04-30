@@ -216,7 +216,7 @@ services:
   # ===========================
  
   spark-master:
-    image: apache/spark:latest
+    image: apache/spark:3.5.0
     container_name: sportlytics-spark-master
     hostname: spark-master
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
@@ -241,7 +241,7 @@ services:
       start_period: 30s
  
   spark-worker-1:
-    image: apache/spark:latest
+    image: apache/spark:3.5.0
     container_name: sportlytics-spark-worker-1
     hostname: spark-worker-1
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
@@ -261,7 +261,7 @@ services:
         condition: service_healthy
  
   spark-worker-2:
-    image: apache/spark:latest
+    image: apache/spark:3.5.0
     container_name: sportlytics-spark-worker-2
     hostname: spark-worker-2
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
