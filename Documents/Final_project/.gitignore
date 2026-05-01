@@ -1,0 +1,5 @@
+# Data files - too large for GitHub
+data/
+*.csv
+*.json
+*.gz
