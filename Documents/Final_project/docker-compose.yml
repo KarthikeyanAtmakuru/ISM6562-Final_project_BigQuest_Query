@@ -287,8 +287,7 @@ services:
     ports:
       - "8888:8888"  # Jupyter Web UI
     environment:
-      - JUPYTER_TOKEN=
-      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=spark
       - SPARK_MASTER=spark://spark-master:7077
       - PYSPARK_SUBMIT_ARGS=--master spark://spark-master:7077 pyspark-shell
       - PYSPARK_DRIVER_PYTHON=/opt/conda/bin/python3
