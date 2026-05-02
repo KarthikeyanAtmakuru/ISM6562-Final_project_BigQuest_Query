@@ -289,11 +289,15 @@ services:
     environment:
       - JUPYTER_TOKEN=spark
       - SPARK_MASTER=spark://spark-master:7077
-      - PYSPARK_SUBMIT_ARGS=--master spark://spark-master:7077 pyspark-shell
+      - PYSPARK_SUBMIT_ARGS=--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 --master spark://spark-master:7077 pyspark-shell
       - PYSPARK_DRIVER_PYTHON=/opt/conda/bin/python3
+    command: >
+      bash -c "pip install kafka-python &&
+               start-notebook.sh --NotebookApp.token='spark'"
     volumes:
       - ./notebooks:/home/jovyan/notebooks   # Stage 2 notebook lives here
       - ./data:/home/jovyan/data             # Local data access
+      - ./producers:/home/jovyan/producers   # Stage 3 producer
       - jupyter-data:/home/jovyan/work
     networks:
       - sportlytics-network
@@ -302,7 +306,8 @@ services:
         condition: service_healthy
       namenode:
         condition: service_healthy
- 
+      kafka:                                 
+        condition: service_healthy
   # ==============================
   #   Kafka + Zookeeper (Stage 3)
   # ==============================
