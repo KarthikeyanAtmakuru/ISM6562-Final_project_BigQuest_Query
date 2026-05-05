@@ -4,9 +4,9 @@
 # Based on Hadoop 3.2.1
 
 services:
-  # ===========================
-  # HDFS Components
-  # ===========================
+  # ============================
+  #   HDFS Components (Stage 1)
+  # ============================
 
   namenode:
     image: tcsmith314/hadoop-namenode-python311:latest
@@ -93,9 +93,9 @@ services:
       namenode:
         condition: service_healthy
 
-  # ===========================
-  # YARN Components
-  # ===========================
+  # =============================
+  #   YARN Components (Stage 1)
+  # =============================
 
   resourcemanager:
     image: tcsmith314/hadoop-resourcemanager-python311:latest
@@ -190,9 +190,9 @@ services:
     depends_on:
       - resourcemanager
 
-  # ===========================
-  # MapReduce History Server
-  # ===========================
+  # =====================================
+  #   MapReduce History Server (Stage 1)
+  # =====================================
 
   historyserver:
     image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
@@ -211,9 +211,9 @@ services:
       namenode:
         condition: service_healthy
   
-  # ===========================
-  # Spark Components (Stage 2)
-  # ===========================
+  # =============================
+  #   Spark Components (Stage 2)
+  # =============================
  
   spark-master:
     image: apache/spark:3.5.0
@@ -289,11 +289,15 @@ services:
     environment:
       - JUPYTER_TOKEN=spark
       - SPARK_MASTER=spark://spark-master:7077
-      - PYSPARK_SUBMIT_ARGS=--master spark://spark-master:7077 pyspark-shell
+      - PYSPARK_SUBMIT_ARGS=--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 --master spark://spark-master:7077 pyspark-shell
       - PYSPARK_DRIVER_PYTHON=/opt/conda/bin/python3
+    command: >
+      bash -c "pip install kafka-python &&
+               start-notebook.sh --NotebookApp.token='spark'"
     volumes:
       - ./notebooks:/home/jovyan/notebooks   # Stage 2 notebook lives here
       - ./data:/home/jovyan/data             # Local data access
+      - ./producers:/home/jovyan/producers   # Stage 3 producer
       - jupyter-data:/home/jovyan/work
     networks:
       - sportlytics-network
@@ -302,10 +306,195 @@ services:
         condition: service_healthy
       namenode:
         condition: service_healthy
+      kafka:                                 
+        condition: service_healthy
+  # ==============================
+  #   Kafka + Zookeeper (Stage 3)
+  # ==============================
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: sportlytics-zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"   
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000             
+      KAFKA_OPTS: "-Dzookeeper.4lw.commands.whitelist=ruok,srvr,stat,conf,mntr"
+      KAFKA_HEAP_OPTS: "-Xmx384m -Xms384m"
+    mem_limit: 512m
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - sportlytics-network
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: sportlytics-kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"     
+      - "29092:29092"   
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"   
+      KAFKA_NUM_PARTITIONS: 3                   
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1       
+      KAFKA_LOG_RETENTION_HOURS: 168            
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
+    mem_limit: 1g
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - sportlytics-network
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 20s
+      timeout: 15s
+      retries: 10
+      start_period: 40s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: sportlytics-kafka-ui
+    hostname: kafka-ui
+    ports:
+      - "8089:8080"   
+    environment:
+      KAFKA_CLUSTERS_0_NAME: sportlytics-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092     
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      DYNAMIC_CONFIG_ENABLED: "true"
+    mem_limit: 512m
+    networks:
+      - sportlytics-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+
+  # ==================================
+  #   Airflow Orchestration (Stage 4)
+  # ==================================
+
+  postgres:
+    image: postgres:13
+    container_name: sportlytics-postgres
+    hostname: postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - sportlytics-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
  
-  # ===========================
-  # Stage 3: Kafka + Zookeeper
-  # ===========================
+  airflow-init:
+    image: apache/airflow:2.8.1
+    container_name: sportlytics-airflow-init
+    hostname: airflow-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__SECRET_KEY: 'sportlytics-secret-key'
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    command: version
+    networks:
+      - sportlytics-network
+ 
+  airflow-webserver:
+    image: apache/airflow:2.8.1
+    container_name: sportlytics-airflow-webserver
+    hostname: airflow-webserver
+    ports:
+      - "8085:8080"   # Airflow Web UI (8080 taken by Spark)
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__SECRET_KEY: 'sportlytics-secret-key'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
+    command: webserver
+    networks:
+      - sportlytics-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+ 
+  airflow-scheduler:
+    image: apache/airflow:2.8.1
+    container_name: sportlytics-airflow-scheduler
+    hostname: airflow-scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__SECRET_KEY: 'sportlytics-secret-key'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
+    command: scheduler
+    networks:
+      - sportlytics-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully  
 
 
 networks:
@@ -323,3 +512,9 @@ volumes:
   spark-worker-1-data:
   spark-worker-2-data:
   jupyter-data:
+  zookeeper-data:       
+  zookeeper-logs:       
+  kafka-data: 
+  postgres-data:
+  airflow-logs:
+  
