@@ -15,6 +15,7 @@ Kafka Topic:
 """
 #Importing all required libraries
 from kafka import KafkaProducer
+from pyspark.sql import SparkSession
 import json
 import time
 import pandas as pd
@@ -26,13 +27,17 @@ producer = KafkaProducer(
     key_serializer=lambda k: k.encode('utf-8') if k else None
 )
  
-# Loading the player tracking data from the CSV file. # In production, this feed arrives at around 25 frames per second from arena cameras. 
-# This producer simulate that rate by adjusting the event delay between messages.
-player_tracking = pd.read_csv(
-    '/home/jovyan/data/07-sportlytics-athletics/player-tracking.csv.gz',
-    compression='gzip',
-    engine='python'
-)
+# Loading player tracking data from HDFS (requires Stage 1 to have run first)
+spark = SparkSession.builder \
+    .appName("Sportlytics-Producer") \
+    .config("spark.hadoop.fs.defaultFS", "hdfs://namenode:9000") \
+    .getOrCreate()
+
+player_tracking = spark.read \
+    .option("header", "true") \
+    .option("inferSchema", "true") \
+    .csv("hdfs://namenode:9000/sportlytics/raw/player-tracking.csv.gz") \
+    .toPandas()
 
 # Cleaning and organizing the timestamps so events stream in chronological order
 player_tracking['timestamp'] = pd.to_datetime(
