@@ -195,7 +195,6 @@ Run this **while the producer is streaming** to see real-time data processing.
 ## Project Structure
  
 ```
-```
 ISM6562-Final_project_BigQuest_Query/
 │
 ├── data/                                   # raw data files (NOT committed to Git)
@@ -233,6 +232,8 @@ ISM6562-Final_project_BigQuest_Query/
 ├── docker-compose.yml                      # full stack — all 4 stages
 ├── .gitignore
 └── README.md
+```
+
 ``````
  
 ---
