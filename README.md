@@ -12,8 +12,8 @@
 | Name | GitHub Branch |
 |---|---|
 | Karthikeyan Atmakuru | `karthikeyan` |
-| *Marta Falceto Font* | *(add branch)* |
-| *Kadiatou Sogodogo* | *(add branch)* |
+| *Marta Falceto Font* | `marta-stage-2` |
+| *Kadiatou Sogodogo* | `Kadiatou-stage-3` |
 
 ---
 
