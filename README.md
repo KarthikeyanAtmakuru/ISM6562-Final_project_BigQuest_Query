@@ -195,9 +195,11 @@ Run this **while the producer is streaming** to see real-time data processing.
 ## Project Structure
  
 ```
+```
 ISM6562-Final_project_BigQuest_Query/
 │
 ├── data/                                   # raw data files (NOT committed to Git)
+│   ├── README.md                           # instructions to download data
 │   └── 07-sportlytics-athletics/
 │       ├── player-tracking.csv.gz
 │       ├── game-stats.json.gz
@@ -218,12 +220,20 @@ ISM6562-Final_project_BigQuest_Query/
 │   └── sportlytics_event_producer.py
 │
 ├── dags/                                   # Airflow DAG definitions
-│   └── sportlytics_pipeline.py
+│   ├── batch_pipeline.py
+│   └── streaming_monitor.py
+│
+├── report/                                 # Written report and architecture diagram
+│   ├── final-report.pdf
+│   └── architecture-diagram.png
+│
+├── presentation/                           # Slide deck
+│   └── slides.pdf
 │
 ├── docker-compose.yml                      # full stack — all 4 stages
 ├── .gitignore
 └── README.md
-```
+``````
  
 ---
  
