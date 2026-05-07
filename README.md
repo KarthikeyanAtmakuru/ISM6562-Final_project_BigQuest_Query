@@ -12,8 +12,8 @@
 | Name | GitHub Branch |
 |---|---|
 | Karthikeyan Atmakuru | `karthikeyan` |
-| *Marta Falceto Font* | *(add branch)* |
-| *Kadiatou Sogodogo* | *(add branch)* |
+| *Marta Falceto Font* | `marta-stage-2` |
+| *Kadiatou Sogodogo* | `Kadiatou-Stage-3` |
 
 ---
 
@@ -55,6 +55,8 @@ Sportlytics' current infrastructure was built for a 3-team proof-of-concept and 
 
 Data sourced from: [Professor's course repository](https://github.com/prof-tcsmith/ism6562s26-class/tree/main/final-projects/data/07-sportlytics-athletics)
 
+> **Note:** Data files are not committed to this repository (excluded via `.gitignore`). Download them from the professor's course repository and place them in `data/07-sportlytics-athletics/` before running the project.
+ 
 ---
 
 ## Architecture Overview
@@ -94,124 +96,197 @@ Each stage builds on top of the previous — HDFS stays running when Spark is ad
 | YARN included | Yes | Spark submits jobs to YARN ResourceManager |
 | History Server | Yes | Needed to debug Spark jobs after they complete |
 
-### Starting services per stage
-
-```bash
-# Stage 1 only — HDFS
-docker compose up namenode datanode1 datanode2 datanode3 resourcemanager nodemanager1 nodemanager2 nodemanager3 historyserver 
-
-# Stage 2 — Add Spark
-
-
-# Stage 3 — Add Kafka
-
-
-# Stage 4 — Full stack
-
-```
-
+## Setup Instructions
+ 
+### Prerequisites
+- Docker Desktop (minimum 8GB RAM allocated)
+- Git
+- Data files downloaded from the professor's course repository and placed in `data/07-sportlytics-athletics/`
+> **⚠️ Windows users (Git Bash):** Git Bash automatically converts Linux-style paths, which breaks `docker exec` commands. Prefix every `docker exec` command with `MSYS_NO_PATHCONV=1` to disable this. Examples below show both Windows and Mac/Linux versions.
+ 
 ---
-
+ 
+### Step 1 — Clone the repository
+ 
+```bash
+git clone https://github.com/KarthikeyanAtmakuru/ISM6562-Final_project_BigQuest_Query.git
+cd ISM6562-Final_project_BigQuest_Query
+```
+ 
+---
+ 
+### Step 2 — Start the containers
+ 
+```bash
+docker compose up -d
+```
+ 
+Wait until all containers are healthy before proceeding. You can check with:
+ 
+```bash
+docker ps
+```
+ 
+Verify the following UIs are accessible:
+- **NameNode UI:** http://localhost:9870 (should show 3 Live Nodes)
+- **ResourceManager UI:** http://localhost:8088 (should show 3 Active Nodes)
+- **Spark Master UI:** http://localhost:8080 (should show 2 Alive Workers)
+- **Kafka UI:** http://localhost:8089
+- **JupyterLab:** http://localhost:8888 (token: `spark`)
+---
+ 
+### Step 3 — Load data into HDFS (Stage 1)
+ 
+**Windows (Git Bash):**
+```bash
+MSYS_NO_PATHCONV=1 docker exec sportlytics-namenode bash /scripts/01_load_hdfs.sh
+```
+ 
+**Mac/Linux:**
+```bash
+docker exec sportlytics-namenode bash /scripts/01_load_hdfs.sh
+```
+ 
+This creates the HDFS zone structure (`/sportlytics/raw`, `/sportlytics/processed`, `/sportlytics/analytics`) and loads all 5 data files. You should see `===== Done! =====` at the end.
+ 
+---
+ 
+### Step 4 — Run Stage 2 Spark batch transforms
+ 
+Open JupyterLab at http://localhost:8888 (token: `spark`) and run the notebook:
+ 
+```
+notebooks/02-spark-transforms.ipynb
+```
+ 
+Run all cells in order. This reads from HDFS, cleans and joins the datasets, and writes Parquet outputs back to HDFS.
+ 
+---
+ 
+### Step 5 — Run the Kafka producer (Stage 3)
+ 
+Open a terminal in JupyterLab and run:
+ 
+```bash
+cd /home/jovyan/producers
+python3 sportlytics_event_producer.py
+```
+ 
+This reads player tracking data from HDFS via Spark and streams 750,000 events to the `realtime_player_telemetry` Kafka topic at 25 frames/second.
+ 
+You can monitor the messages in the **Kafka UI** at http://localhost:8089 → Topics → `realtime_player_telemetry`.
+ 
+> **Note:** Stage 1 must be completed before running the producer, as it reads data from HDFS.
+ 
+---
+ 
+### Step 6 — Run Stage 3 streaming pipeline
+ 
+Open JupyterLab and run:
+ 
+```
+notebooks/03-streaming-pipeline.ipynb
+```
+ 
+Run this **while the producer is streaming** to see real-time data processing.
+ 
+---
+ 
 ## Project Structure
-
+ 
 ```
 ISM6562-Final_project_BigQuest_Query/
 │
-├── data/                                   # raw data files (committed to Git)
+├── data/                                   # raw data files (NOT committed to Git)
+│   ├── README.md                           # instructions to download data
 │   └── 07-sportlytics-athletics/
-│       ├── player-tracking.csv
-│       ├── game-stats.json
-│       ├── injury-reports.csv
-│       ├── training-sessions.json
-│       └── team-schedules.csv
+│       ├── player-tracking.csv.gz
+│       ├── game-stats.json.gz
+│       ├── injury-reports.csv.gz
+│       ├── training-sessions.json.gz
+│       └── team-schedules.csv.gz
 │
 ├── scripts/                                # HDFS load and setup scripts
 │   └── 01_load_hdfs.sh
 │
 ├── notebooks/                              # PySpark Jupyter notebooks
-│   ├── stage2_batch_transform.ipynb
-│   └── stage3_streaming.ipynb
+│   ├── 01-data-lake-setup.ipynb
+│   ├── 02-spark-transforms.ipynb
+│   ├── 03-streaming-pipeline.ipynb
+│   └── 04-exploration.ipynb
+│
+├── producers/                              # Kafka producer scripts
+│   └── sportlytics_event_producer.py
 │
 ├── dags/                                   # Airflow DAG definitions
-│   └── sportlytics_pipeline.py
+│   ├── batch_pipeline.py
+│   └── streaming_monitor.py
+│
+├── report/                                 # Written report and architecture diagram
+│   ├── final-report.pdf
+│   └── architecture-diagram.png
+│
+├── presentation/                           # Slide deck
+│   └── slides.pdf
 │
 ├── docker-compose.yml                      # full stack — all 4 stages
 ├── .gitignore
 └── README.md
 ```
-
+ 
 ---
-
+ 
 ## Stage Progress
-
+ 
 | Stage | Description | Status |
 |---|---|---|
-| Stage 1 | HDFS Data Lake — load all 5 files, create raw/processed/analytics zones | Completed |
-| Stage 2 | Spark Batch — clean, join, aggregate, write Parquet | In Progress |
-| Stage 3 | Kafka + Spark Streaming — real-time player telemetry alerts | In Progress |
+| Stage 1 | HDFS Data Lake — load all 5 files, create raw/processed/analytics zones | ✅ Completed |
+| Stage 2 | Spark Batch — clean, join, aggregate, write Parquet | ✅ Completed |
+| Stage 3 | Kafka + Spark Streaming — real-time player telemetry | ✅ Completed |
 | Stage 4 | Airflow — nightly batch pipeline orchestration | In Progress |
-
+ 
 ---
-
+ 
 ## Business Questions
-
+ 
 1. **Injury risk prediction** — Can historical workload patterns predict injury risk in the next 7 days?
 2. **Fatigue-performance correlation** — How does cumulative exertion correlate with shooting percentage and plus-minus?
 3. **Back-to-back impact** — Quantify performance decline on the second night of a back-to-back
 4. **Travel and rest interaction** — Does travel distance compound fatigue beyond rest days alone?
 5. **Training load optimization** — What is the optimal practice-to-recovery ratio for peak performance?
 6. **Real-time exertion monitoring** — Detect when a player crosses fatigue thresholds within seconds during live games
-
 ---
-
-## Setup Instructions
-
-### Prerequisites
-- Docker Desktop (minimum 8GB RAM allocated)
-- Git
-- VS Code
-
-### Getting Started
-
-```bash
-# 1. Clone this repository
-git clone https://github.com/KarthikeyanAtmakuru/ISM6562-Final_project_BigQuest_Query.git
-cd ISM6562-Final_project_BigQuest_Query
-
-# 2. Switch to your branch
-git checkout karthikeyan
-
-# 3. Download data files from professor's repo and place in data/07-sportlytics-athletics/
-
-# 4. Start Stage 1 services
-docker compose up namenode datanode1 datanode2 datanode3 resourcemanager nodemanager1 nodemanager2 nodemanager3 historyserver -d
-
-
-# 5. Verify HDFS is running — open in browser
-# NameNode UI:        http://localhost:9870  (should show 3 Live Nodes)
-# ResourceManager UI: http://localhost:8088  (should show 3 Active Nodes)
-
+ 
+## Challenges & Solutions
+ 
+**Stage 3 — Kafka Producer Data Loading:**
+Initially, the event producer loaded player tracking data directly from a local file path, as connecting to HDFS from a plain Python script proved more complex than expected. After investigation, we resolved this by initializing a Spark session within the producer script to read the data from HDFS, consistent with the approach used in Stage 2. This ensures the pipeline is fully reproducible without requiring any local file downloads.
+ 
+**Windows Path Conversion (Git Bash):**
+Git Bash on Windows automatically converts Linux-style paths in `docker exec` commands, causing "No such file or directory" errors. This was resolved by prepending `MSYS_NO_PATHCONV=1` to all `docker exec` commands, which disables the automatic path conversion.
+ 
 ---
-
+ 
 ## Git Workflow
-
+ 
 ```bash
 # Always work on your personal branch
-git checkout karthikeyan
-
+git checkout your-branch-name
+ 
 # After making changes
 git add .
-git commit -m "commit message to display"
+git commit -m "descriptive commit message"
 git push
 ```
-
+ 
 ---
-
+ 
 ## References
-
+ 
 - Course: ISM 6562 — Big Data for Business Applications, USF
 - Instructor: Dr. Tim Smith
 - [Apache Hadoop Documentation](https://hadoop.apache.org/docs/stable/)
 - [Apache Spark Documentation](https://spark.apache.org/docs/latest/)
 - [Apache Kafka Documentation](https://kafka.apache.org/documentation/)
 - [Apache Airflow Documentation](https://airflow.apache.org/docs/)
+ 
